@@ -20,6 +20,7 @@ final class ShakalPlayer implements Runnable {
     private final Context context;
     private final Uri uri;
     private final Listener listener;
+    private final long startUs;
     private final Object playback = new Object();
     private volatile boolean stopped;
     private boolean paused;
@@ -36,12 +37,22 @@ final class ShakalPlayer implements Runnable {
     volatile ShakalDsp.Preset preset;
     volatile float wet;
 
-    ShakalPlayer(Context context, Uri uri, ShakalDsp.Preset preset, float wet, Listener listener) {
+    ShakalPlayer(Context context, Uri uri, long positionMs, boolean paused,
+                 ShakalDsp.Preset preset, float wet, Listener listener) {
         this.context = context.getApplicationContext();
         this.uri = uri;
+        this.startUs = positionMs * 1000;
+        this.paused = paused;
         this.preset = preset;
         this.wet = wet;
         this.listener = listener;
+    }
+
+    long positionMs() {
+        synchronized (playback) {
+            return startUs / 1000 + (track == null ? 0
+                    : Integer.toUnsignedLong(track.getPlaybackHeadPosition()) * 1000 / rate);
+        }
     }
 
     void setPaused(boolean value) {
@@ -90,6 +101,7 @@ final class ShakalPlayer implements Runnable {
                 }
             }
             if (source == null) throw new IOException("В файле нет аудиодорожки");
+            if (startUs > 0) extractor.seekTo(startUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
 
             Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
             if ("audio/raw".equals(source.getString(MediaFormat.KEY_MIME))) {
@@ -121,7 +133,7 @@ final class ShakalPlayer implements Runnable {
             int bytes = source.readSampleData(buffer, 0);
             if (bytes < 0) return;
             buffer.position(0).limit(bytes);
-            render(buffer);
+            render(buffer, source.getSampleTime());
             source.advance();
         }
     }
@@ -158,7 +170,7 @@ final class ShakalPlayer implements Runnable {
                         if (info.size > 0 && (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
                             ByteBuffer buffer = codec.getOutputBuffer(index);
                             buffer.position(info.offset).limit(info.offset + info.size);
-                            render(buffer);
+                            render(buffer, info.presentationTimeUs);
                         }
                     } finally {
                         codec.releaseOutputBuffer(index, false);
@@ -220,7 +232,7 @@ final class ShakalPlayer implements Runnable {
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build();
     }
 
-    private void render(ByteBuffer buffer) throws IOException {
+    private void render(ByteBuffer buffer, long timestampUs) throws IOException {
         buffer.order(ByteOrder.LITTLE_ENDIAN);
         int bytes = switch (encoding) {
             case AudioFormat.ENCODING_PCM_8BIT -> 1;
@@ -228,6 +240,11 @@ final class ShakalPlayer implements Runnable {
             case AudioFormat.ENCODING_PCM_24BIT_PACKED -> 3;
             default -> 4;
         };
+        if (timestampUs >= 0 && timestampUs < startUs) {
+            int frameSize = channels * bytes;
+            long skip = (startUs - timestampUs) * rate / 1_000_000;
+            buffer.position(buffer.position() + (int) Math.min(skip, buffer.remaining() / frameSize) * frameSize);
+        }
         while (buffer.remaining() >= channels * bytes && awaitPlaying()) {
             int count = 0;
             ShakalDsp.Preset selected = preset;
