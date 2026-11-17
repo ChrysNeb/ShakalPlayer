@@ -22,7 +22,7 @@ final class MusicLibrary {
     private record Folder(String id, String name) {}
     private record AlbumKey(String title, String artist, String folderId) {}
 
-    static final Song DEMO = new Song(null, "Shakal Loop", "ShakalEQ", "Демо", 12468, 1, 1);
+    static final Song DEMO = new Song(null, "Shakal Loop", "ShakalPlayer", "Демо", 12468, 1, 1);
     private static final String[] COLUMNS = {
             Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE
     };

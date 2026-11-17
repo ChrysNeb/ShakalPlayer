@@ -45,7 +45,7 @@ public final class PlaybackService extends Service {
         super.onCreate();
         audio = getSystemService(AudioManager.class);
         wake = getSystemService(PowerManager.class).newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK, "ShakalEQ:Playback");
+                PowerManager.PARTIAL_WAKE_LOCK, "ShakalPlayer:Playback");
         focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(ShakalPlayer.attributes())
                 .setWillPauseWhenDucked(true)
@@ -58,7 +58,7 @@ public final class PlaybackService extends Service {
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
         getSystemService(NotificationManager.class).createNotificationChannel(
                 new NotificationChannel("playback", "Воспроизведение", NotificationManager.IMPORTANCE_LOW));
-        media = new MediaSession(this, "ShakalEQ");
+        media = new MediaSession(this, "ShakalPlayer");
         media.setSessionActivity(openPlayer);
         media.setCallback(new MediaSession.Callback() {
             @Override public void onPlay() { if (!playing()) toggle(); }
@@ -168,7 +168,7 @@ public final class PlaybackService extends Service {
         if (!paused && !activate()) { publish(); return; }
         player = new ShakalPlayer(this, song().uri(), position, paused, preset, wet(),
                 (finished, failure) -> main.post(() -> finished(finished, failure)));
-        new Thread(player, "ShakalEQ playback").start();
+        new Thread(player, "ShakalPlayer playback").start();
         publish();
     }
 
@@ -180,7 +180,7 @@ public final class PlaybackService extends Service {
                 foreground = true;
             }
         } catch (IllegalStateException | SecurityException failure) {
-            error = "Открой ShakalEQ, чтобы продолжить воспроизведение";
+            error = "Открой ShakalPlayer, чтобы продолжить воспроизведение";
             return false;
         }
         if (!focused) focused = audio.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
@@ -195,7 +195,7 @@ public final class PlaybackService extends Service {
         if (finished != player) return;
         player = null;
         if (failure != null) {
-            android.util.Log.w("ShakalEQ", "Playback failed", failure);
+            android.util.Log.w("ShakalPlayer", "Playback failed", failure);
             error = failure instanceof java.io.IOException && failure.getMessage() != null
                     ? failure.getMessage() : "Не удалось воспроизвести файл";
         } else if (repeat == 2) {

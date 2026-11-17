@@ -82,7 +82,7 @@ public final class MainActivity extends Activity {
         });
         setContentView(root);
 
-        TextView wordmark = label("ShakalEQ", 27, TEXT);
+        TextView wordmark = label("ShakalPlayer", 27, TEXT);
         wordmark.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         root.addView(wordmark);
         LinearLayout navigation = row(root);
